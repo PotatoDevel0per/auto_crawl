@@ -521,8 +521,12 @@ def scrape_channel_and_play_lowest(channel_name: str, save_csv: bool = False, pl
 
         # 재생 시간을 확보하기 위해 대기
         if play_seconds and play_seconds > 0:
-            print(f"영상을 {play_seconds}초 동안 재생하도록 대기합니다.")
-            time.sleep(play_seconds)
+            cap = 300
+            eff = min(int(play_seconds), cap)
+            if eff < int(play_seconds):
+                print(f"요청된 재생 대기 {play_seconds}초를 {cap}초로 제한합니다.")
+            print(f"영상을 {eff}초 동안 재생하도록 대기합니다.")
+            time.sleep(eff)
 
         # 종료 보류: close_on_finish=False인 경우 브라우저 유지
         if not close_on_finish:
@@ -648,9 +652,15 @@ def play_videos_sequence(driver, videos: List[Dict], base_videos_url: Optional[s
 
             WebDriverWait(driver, 12).until(EC.presence_of_element_located((By.CSS_SELECTOR, "#movie_player, video")))
             # +2초 버퍼를 둡니다.
+            # 영상 재생 대기는 최대 5분(300초)로 제한
+            cap = 300
             wait_time = int(dsec) + 2
-            print(f"  · 재생 대기 {wait_time}초...")
-            time.sleep(wait_time)
+            eff = min(wait_time, cap)
+            if eff < wait_time:
+                print(f"  · 원래 대기 {wait_time}초 → 5분 제한 적용: {eff}초")
+            else:
+                print(f"  · 재생 대기 {eff}초...")
+            time.sleep(eff)
         except KeyboardInterrupt:
             raise
         except Exception as e:

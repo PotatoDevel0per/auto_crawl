@@ -211,7 +211,15 @@ def play_videos_sequence_generic(driver, videos: List[Dict], site: str):
                 WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.TAG_NAME, "video")))
             except Exception:
                 pass
-            time.sleep(int(dsec) + 2)
+            # 최대 5분(300초) 제한
+            cap = 300
+            wait_time = int(dsec) + 2
+            eff = min(wait_time, cap)
+            if eff < wait_time:
+                print(f"  · 원래 대기 {wait_time}초 → 5분 제한 적용: {eff}초")
+            else:
+                print(f"  · 재생 대기 {eff}초...")
+            time.sleep(eff)
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -247,4 +255,3 @@ def run_loop_kakaotv(channel_name: str, csv_path: str = "kakaotv_videos.csv"):
 if __name__ == "__main__":
     CHANNEL_NAME = "조선대학교 SW중심사업단"
     run_loop_kakaotv(CHANNEL_NAME)
-

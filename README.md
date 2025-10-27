@@ -7,6 +7,7 @@
 - 특정 채널/계정의 동영상 목록을 자동으로 수집하고(title, views, duration, url), CSV로 저장합니다.
 - 각 플랫폼(YouTube, KakaoTV, NaverTV)별로 페이지를 스크롤하여 모든 영상을 수집합니다.
 - 수집된 목록을 1번부터 순서대로 자동 재생하고, 라운드 종료 시 CSV를 갱신한 뒤 무한 반복합니다. (Ctrl+C로 종료)
+- 모든 플랫폼에서 개별 영상 재생 대기는 최대 5분(300초)으로 제한됩니다.
 
 ## 주요 기능
 - 플랫폼별 전용 스크립트 제공
@@ -92,4 +93,3 @@ pip install selenium undetected-chromedriver pandas
 ## 문의
 - 작성자: PotatoDevel0per
 - 이슈/개선 제안은 PR 또는 이슈로 남겨주세요.
-
