@@ -52,7 +52,11 @@ pip install selenium undetected-chromedriver pandas
 - 파일: `kakao_auto_crawl.py`
 - 실행: `python kakao_auto_crawl.py`
 - 동작:
-  - 채널 검색 → 전체 목록 재수집 → `kakaotv_videos.csv` 저장 → 1→N 자동 재생 → 라운드 종료 시 `saved_at` 갱신 → 반복
+  - 채널 검색 → `/video` 경로로 직접 이동 → 더보기 버튼 클릭으로 전체 목록 로드 → `kakaotv_videos.csv` 저장 → 1→N 자동 재생 → 라운드 종료 시 `saved_at` 갱신 → 반복
+- 채널 URL 직접 지정 (권장):
+  - 스크립트 하단 `KAKAO_CHANNEL_URL` 변수에 채널 URL 설정
+  - 예: `KAKAO_CHANNEL_URL = "https://tv.kakao.com/channel/10114190"`
+  - 검색 과정을 건너뛰고 바로 채널로 이동하여 안정성 향상
 
 ### NaverTV
 - 파일: `naver_auto_crawl.py`
@@ -77,6 +81,16 @@ pip install selenium undetected-chromedriver pandas
   - 채널 영상 수가 많을수록 스크롤/수집 시간이 늘어납니다. 라운드마다 전체 재수집하므로 대형 채널은 시간이 길어질 수 있습니다.
 
 ## 업데이트 로그
+- 2025-11-05
+  - KakaoTV: 크롤링 로직 대폭 개선
+    - 채널 진입 로직 단순화: `/video` 경로로 직접 이동하여 전체 동영상 목록 접근
+    - 영상 선택자 개선: `a.link_contents`, `/cliplink/` 사용으로 정확도 향상
+    - 더보기 버튼 자동 클릭 (최대 100회)으로 모든 영상 로드
+    - 중복 URL 제거 로직 추가
+    - 채널 URL 직접 지정 기능 추가 (`KAKAO_CHANNEL_URL` 변수)
+    - 검색 실패 시 상세 디버깅 정보 출력
+  - 모든 플랫폼: 영상 재생 시간 최대 5분(300초) 제한 확인 및 유지
+
 - 2025-10-24
   - YouTube: 채널 검색→동영상 탭 이동→조회수 수집→최저 조회수 영상 재생 로직 추가
   - 조회수 파서 강화(억/만/천, K/M/B, 영어/한국어 혼용), 카드당 스크롤 가시화로 지연 로딩 대응

@@ -113,85 +113,234 @@ def try_dismiss_overlays(driver):
             pass
 
 
-def collect_kakaotv_videos(driver, channel_name: str) -> List[Dict]:
+def collect_kakaotv_videos(driver, channel_name: str, channel_url: Optional[str] = None) -> List[Dict]:
     print(f"KakaoTV 채널 '{channel_name}'의 모든 동영상 정보를 수집합니다.")
-    base = "https://tv.kakao.com/"
-    driver.get(base)
-    try_dismiss_overlays(driver)
-    # 검색
-    search_sel = [
-        (By.CSS_SELECTOR, "input[type='search']"),
-        (By.CSS_SELECTOR, "input#searchKeyword"),
-        (By.CSS_SELECTOR, "input[name='q']"),
-        (By.CSS_SELECTOR, "input[placeholder*='검색']"),
-    ]
-    sb = None
-    for by, sel in search_sel:
-        try:
-            sb = WebDriverWait(driver, 5).until(EC.presence_of_element_located((by, sel)))
-            break
-        except Exception:
-            continue
-    if not sb:
-        raise RuntimeError("KakaoTV 검색창을 찾지 못했습니다.")
-    sb.clear(); sb.send_keys(channel_name); sb.send_keys(Keys.ENTER)
+
+    # 1) 채널 URL로 직접 이동
+    if channel_url:
+        print(f"지정된 채널 URL로 이동: {channel_url}")
+        # /video 경로로 직접 이동하여 전체 동영상 목록 로드
+        if "/video" not in channel_url:
+            channel_url = channel_url.rstrip("/") + "/video"
+        driver.get(channel_url)
+    else:
+        # 검색을 통한 채널 찾기
+        base = "https://tv.kakao.com/"
+        driver.get(base)
+        try_dismiss_overlays(driver)
+
+        # 검색창 찾기
+        search_sel = [
+            (By.CSS_SELECTOR, "input[type='text']"),
+            (By.CSS_SELECTOR, "input[type='search']"),
+            (By.CSS_SELECTOR, "input#searchKeyword"),
+            (By.CSS_SELECTOR, "input[placeholder*='검색']"),
+        ]
+        sb = None
+        for by, sel in search_sel:
+            try:
+                sb = WebDriverWait(driver, 5).until(EC.presence_of_element_located((by, sel)))
+                break
+            except Exception:
+                continue
+        if not sb:
+            raise RuntimeError("KakaoTV 검색창을 찾지 못했습니다.")
+
+        print(f"검색어 입력: '{channel_name}'")
+        sb.clear()
+        sb.send_keys(channel_name)
+        sb.send_keys(Keys.ENTER)
+        time.sleep(2)
+        try_dismiss_overlays(driver)
+
+        # 채널 링크 찾기 (더 넓은 범위로 검색)
+        print("검색 결과에서 채널 링크를 찾습니다...")
+        time.sleep(2)  # 검색 결과 로딩 대기
+
+        # 페이지 스크롤하여 결과 로드
+        driver.execute_script("window.scrollTo(0, 500);")
+        time.sleep(1)
+
+        # 모든 채널 링크 수집
+        channel_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='/channel']")
+        print(f"찾은 채널 링크 수: {len(channel_links)}")
+
+        channel_clicked = False
+        for idx, link in enumerate(channel_links):
+            try:
+                href = link.get_attribute("href") or ""
+                text = link.text.strip()
+                print(f"  [{idx+1}] {text[:50]} - {href}")
+
+                # 채널 이름이 포함되어 있거나, 첫 번째 채널 링크 사용
+                if channel_name in text or idx == 0:
+                    if href.startswith("/"):
+                        href = "https://tv.kakao.com" + href
+
+                    # 채널 ID 추출
+                    m = re.search(r'/channel/(\d+)', href)
+                    if m:
+                        channel_id = m.group(1)
+                        video_url = f"https://tv.kakao.com/channel/{channel_id}/video"
+                        print(f"\n선택된 채널: {text[:50]}")
+                        print(f"채널 전체 동영상 페이지로 이동: {video_url}")
+                        driver.get(video_url)
+                        channel_clicked = True
+                        break
+            except Exception as e:
+                print(f"  링크 처리 중 오류: {e}")
+                continue
+
+        if not channel_clicked:
+            print("\n검색 결과에서 채널을 찾지 못했습니다.")
+            print("현재 페이지 URL:", driver.current_url)
+            print("\n해결 방법:")
+            print("1. 카카오TV에서 수동으로 채널을 찾아 URL을 확인하세요.")
+            print("2. kakao_auto_crawl.py 파일의 KAKAO_CHANNEL_URL 변수에 채널 URL을 설정하세요.")
+            print("   예: KAKAO_CHANNEL_URL = 'https://tv.kakao.com/channel/XXXXX'")
+            raise RuntimeError("채널을 찾지 못했습니다. channel_url을 직접 지정해주세요.")
+
     time.sleep(2)
     try_dismiss_overlays(driver)
 
-    # 채널 클릭 시도
-    channel_xps = [
-        f"//a[contains(@href, '/channel') and .//*[contains(normalize-space(), '{channel_name}')]]",
-        f"//a[contains(@href, '/channel') and contains(normalize-space(), '{channel_name}')]",
-    ]
-    for xp in channel_xps:
+    # 2) 더보기 버튼 클릭으로 모든 영상 로드
+    print("더보기 버튼을 클릭하여 모든 영상을 로드합니다.")
+    more_clicks = 0
+    while more_clicks < 100:  # 최대 100회
         try:
-            el = WebDriverWait(driver, 6).until(EC.element_to_be_clickable((By.XPATH, xp)))
-            el.click(); break
-        except Exception:
-            continue
+            # 페이지 하단으로 스크롤
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(0.5)
 
-    time.sleep(1)
-    smart_scroll_until_no_new(driver, "a[href*='/v/']", max_scrolls=80, pause=1.0)
-    cards = driver.find_elements(By.CSS_SELECTOR, "a[href*='/v/']")
-    print(f"감지된 영상 수: {len(cards)}")
+            # 더보기 버튼 찾기
+            more_button = None
+            more_selectors = [
+                "//a[contains(text(), '더보기')]",
+                "//button[contains(text(), '더보기')]",
+                "//a[contains(@class, 'more')]",
+                "//button[contains(@class, 'more')]",
+            ]
+            for sel in more_selectors:
+                try:
+                    more_button = WebDriverWait(driver, 2).until(
+                        EC.element_to_be_clickable((By.XPATH, sel))
+                    )
+                    break
+                except Exception:
+                    continue
+
+            if more_button:
+                driver.execute_script("arguments[0].scrollIntoView({block:'center'});", more_button)
+                time.sleep(0.3)
+                more_button.click()
+                more_clicks += 1
+                print(f"더보기 클릭 #{more_clicks}")
+                time.sleep(1)
+            else:
+                print("더보기 버튼을 찾지 못했습니다. 로딩 완료.")
+                break
+        except Exception:
+            print("더 이상 더보기 버튼이 없습니다.")
+            break
+
+    # 3) 추가 스크롤로 동적 로딩 확인
+    smart_scroll_until_no_new(driver, "a.link_contents, a[href*='/cliplink/']", max_scrolls=30, pause=1.0)
+
+    # 4) 영상 링크 수집
+    print("영상 정보를 수집합니다.")
+    cards = driver.find_elements(By.CSS_SELECTOR, "a.link_contents, a[href*='/cliplink/']")
+    print(f"감지된 영상 카드 수: {len(cards)}")
+
     out: List[Dict] = []
+    seen_urls = set()
+
     for idx, a in enumerate(cards, 1):
         try:
-            title = (a.get_attribute("title") or a.text or "").strip()
             href = a.get_attribute("href")
+            if not href or href in seen_urls:
+                continue
+            seen_urls.add(href)
+
+            # URL 정규화
+            if href.startswith("/"):
+                href = "https://tv.kakao.com" + href
+
+            # cliplink가 포함된 영상만 수집
+            if "/cliplink/" not in href:
+                continue
+
+            # 제목 추출
+            title = (a.get_attribute("title") or "").strip()
+            if not title:
+                try:
+                    # aria-label에서 추출
+                    title = (a.get_attribute("aria-label") or "").strip()
+                except Exception:
+                    pass
+            if not title:
+                try:
+                    # 텍스트에서 추출
+                    title = (a.text or "").strip()
+                except Exception:
+                    pass
+
+            # 컨테이너 찾기
             try:
-                container = a.find_element(By.XPATH, "ancestor::*[self::li or self::div][1]")
+                container = a.find_element(By.XPATH, "ancestor::li[1]")
             except Exception:
-                container = a
-            # 길이
+                try:
+                    container = a.find_element(By.XPATH, "ancestor::div[1]")
+                except Exception:
+                    container = a
+
+            # 재생 시간 추출
             duration_text = None
             try:
-                texts = [e.text for e in container.find_elements(By.XPATH, ".//*[self::span or self::em][contains(.,':')]")]
-                for t in texts:
-                    m = re.search(r"\b\d{1,2}:\d{2}(?::\d{2})?\b", t)
-                    if m:
-                        duration_text = m.group(0); break
+                duration_elem = container.find_element(By.CSS_SELECTOR, ".txt_time, [class*='time']")
+                duration_text = duration_elem.text.strip()
             except Exception:
-                pass
+                try:
+                    texts = [e.text for e in container.find_elements(By.TAG_NAME, "span")]
+                    for t in texts:
+                        if re.search(r'\d{1,2}:\d{2}', t):
+                            duration_text = t.strip()
+                            break
+                except Exception:
+                    pass
+
             duration_seconds = parse_duration_to_seconds(duration_text) if duration_text else None
-            # 조회수
+
+            # 조회수 추출
             views_val = None
             try:
-                texts = [e.text for e in container.find_elements(By.XPATH, ".//*[self::span or self::em or self::div]")]
-                cand = None
-                for t in texts:
-                    if any(k in t for k in ["조회", "재생", "views", "VIEW", "View"]):
-                        cand = t; break
-                views_val = parse_views_generic(cand) if cand else None
+                view_elem = container.find_element(By.CSS_SELECTOR, ".txt_view, [class*='view']")
+                views_text = view_elem.text.strip()
+                views_val = parse_views_generic(views_text)
             except Exception:
-                pass
+                try:
+                    texts = [e.text for e in container.find_elements(By.TAG_NAME, "span")]
+                    for t in texts:
+                        if any(k in t for k in ["재생", "조회", "views"]):
+                            views_val = parse_views_generic(t)
+                            if views_val is not None:
+                                break
+                except Exception:
+                    pass
+
             out.append({
-                "index": idx, "title": title, "views": views_val, "url": href,
-                "duration": duration_text, "duration_seconds": duration_seconds,
+                "index": len(out) + 1,
+                "title": title or "(제목 없음)",
+                "views": views_val,
+                "url": href,
+                "duration": duration_text,
+                "duration_seconds": duration_seconds,
             })
-            print(f"- [{idx}] {title} | 조회수: {views_val} | 길이: {duration_text}")
+            print(f"- [{len(out)}] {title} | 조회수: {views_val} | 길이: {duration_text}")
+
         except Exception as e:
-            print(f"카드 파싱 실패 [{idx}]: {e}")
+            print(f"카드 파싱 실패: {e}")
+            continue
+
     return out
 
 
@@ -226,7 +375,7 @@ def play_videos_sequence_generic(driver, videos: List[Dict], site: str):
             print(f"  · 재생 중 오류: {e}")
 
 
-def run_loop_kakaotv(channel_name: str, csv_path: str = "kakaotv_videos.csv"):
+def run_loop_kakaotv(channel_name: str, csv_path: str = "kakaotv_videos.csv", channel_url: Optional[str] = None):
     print("KakaoTV 무한 재생 루프 시작")
     options = uc.ChromeOptions()
     options.add_argument("--window-size=1600,1000")
@@ -236,7 +385,7 @@ def run_loop_kakaotv(channel_name: str, csv_path: str = "kakaotv_videos.csv"):
     driver = uc.Chrome(options=options)
     try:
         while True:
-            vids = collect_kakaotv_videos(driver, channel_name)
+            vids = collect_kakaotv_videos(driver, channel_name, channel_url=channel_url)
             saved_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             df = pd.DataFrame(vids)
             df["saved_at"] = saved_at
@@ -254,4 +403,6 @@ def run_loop_kakaotv(channel_name: str, csv_path: str = "kakaotv_videos.csv"):
 
 if __name__ == "__main__":
     CHANNEL_NAME = "조선대학교 SW중심사업단"
-    run_loop_kakaotv(CHANNEL_NAME)
+    # 필요하다면 채널 URL을 직접 지정하세요 (예: "https://tv.kakao.com/channel/XXXX")
+    KAKAO_CHANNEL_URL = "https://tv.kakao.com/channel/10114190/video"
+    run_loop_kakaotv(CHANNEL_NAME, channel_url=KAKAO_CHANNEL_URL)
