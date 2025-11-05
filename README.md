@@ -23,20 +23,59 @@
   - 다양한 UI/레이아웃 대응 셀렉터, 무한 스크롤 로딩 감지, 오버레이(쿠키/로그인) 닫기 시도
   - 브라우저 백그라운드 스로틀링 완화 옵션 적용 및 고정 창 크기
 
-## 요구 사항
-- Python 3.9+
-- Google Chrome(또는 Chromium) 설치
-- Python 패키지
-  - selenium
-  - undetected-chromedriver
-  - pandas
+## 최초 실행환경 세팅
 
-설치 예시
+### 1. 사전 요구사항
+- **Python 버전**: Python 3.10 이하 (Python 3.9 또는 3.10 권장)
+- **Chrome 브라우저**: 최신 버전으로 설치되어 있어야 합니다
+
+### 2. Windows 사용자 추가 설정
+Windows에서 가상환경을 사용하기 위해서는 PowerShell 실행 정책을 변경해야 합니다.
+
+1. PowerShell을 **관리자 권한**으로 실행
+2. 다음 명령어 실행:
+```powershell
+Set-ExecutionPolicy Unrestricted
+```
+
+### 3. 가상환경 생성 및 활성화
+
+프로젝트 디렉토리에서 다음 명령어를 실행합니다:
+
+**가상환경 생성:**
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+```
+
+**가상환경 활성화:**
+- Windows:
+```powershell
+.venv\Scripts\activate
+```
+
+- Linux/Mac:
+```bash
+source .venv/bin/activate
+```
+
+### 4. 필요한 라이브러리 설치
+
+가상환경이 활성화된 상태에서 다음 명령어를 실행합니다:
+
+```bash
 pip install --upgrade pip
-pip install selenium undetected-chromedriver pandas
+pip install -r requirements.txt
+```
+
+### 5. 스크립트 실행
+
+각 플랫폼별 Python 파일을 실행합니다 (아래 "사용법" 섹션 참고):
+```bash
+python youtube_auto_crawl.py
+# 또는
+python kakao_auto_crawl.py
+# 또는
+python naver_auto_crawl.py
 ```
 
 ## 사용법
