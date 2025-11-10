@@ -360,6 +360,52 @@ def play_videos_sequence_generic(driver, videos: List[Dict], site: str):
                 WebDriverWait(driver, 8).until(EC.presence_of_element_located((By.TAG_NAME, "video")))
             except Exception:
                 pass
+
+            # 오버레이 및 팝업 닫기
+            try_dismiss_overlays(driver)
+
+            # 재생 버튼 클릭 (카카오TV는 자동 재생이 안 되므로 필수)
+            try:
+                print("  · 재생 버튼을 찾는 중...")
+                play_button_selectors = [
+                    "//button[contains(@class, 'btn_play')]",
+                    "//button[contains(@class, 'play')]",
+                    "//button[@aria-label='재생' or @aria-label='play']",
+                    "//button[contains(@title, '재생')]",
+                    "//div[contains(@class, 'play')]//button",
+                ]
+
+                play_clicked = False
+                for selector in play_button_selectors:
+                    try:
+                        play_btn = WebDriverWait(driver, 3).until(
+                            EC.element_to_be_clickable((By.XPATH, selector))
+                        )
+                        play_btn.click()
+                        print("  · 재생 버튼 클릭 완료")
+                        play_clicked = True
+                        time.sleep(1)
+                        break
+                    except Exception:
+                        continue
+
+                # 재생 버튼을 못 찾으면 video 태그에 직접 재생 명령
+                if not play_clicked:
+                    print("  · 재생 버튼을 찾지 못함. JavaScript로 직접 재생 시도...")
+                    try:
+                        driver.execute_script("""
+                            var videos = document.querySelectorAll('video');
+                            for (var i = 0; i < videos.length; i++) {
+                                videos[i].play();
+                            }
+                        """)
+                        print("  · JavaScript로 재생 시작")
+                    except Exception as js_err:
+                        print(f"  · JavaScript 재생 실패: {js_err}")
+
+            except Exception as play_err:
+                print(f"  · 재생 버튼 클릭 실패: {play_err}")
+
             # 최대 5분(300초) 제한
             cap = 300
             wait_time = int(dsec) + 2
